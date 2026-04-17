@@ -13,7 +13,7 @@ func main() {
 
 	config.ConnectDB()
 
-	config.DB.AutoMigrate(&models.User{}, &models.OTP{})
+	config.DB.AutoMigrate(&models.User{}, &models.OTP{}, &models.RefreshToken{})
 
 	routes.SetupRoutes(r)
 

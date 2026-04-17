@@ -4,34 +4,46 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-)
+	"gin-auth/utils"
 
-var secretKey = []byte("supersecretkey")
+	"github.com/gin-gonic/gin"
+)
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
+		var tokenString string
 
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		// 1. Try to get token from cookie (Secure practice)
+		cookie, err := c.Cookie("access_token")
+		if err == nil {
+			tokenString = cookie
+		} else {
+			// 2. Fallback to Authorization header
+			authHeader := c.GetHeader("Authorization")
+			if authHeader != "" {
+				parts := strings.Split(authHeader, " ")
+				if len(parts) == 2 {
+					tokenString = parts[1]
+				}
+			}
+		}
+
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 			c.Abort()
 			return
 		}
 
-		tokenString := strings.Split(authHeader, " ")[1]
-
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return secretKey, nil
-		})
-
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		// 3. Validate using the utility
+		userID, err := utils.ValidateAccessToken(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
 		}
 
+		// Set userID in context for subsequent handlers
+		c.Set("user_id", userID)
 		c.Next()
 	}
 }
